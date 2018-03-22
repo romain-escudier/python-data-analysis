@@ -164,12 +164,12 @@ def compute_spectrum(y, Fs, taper=None, dof=2):
     if dof > 2:
         if dof%2 == 0:
             N_band_avg = np.int(dof/2)
-            PSD_bands  = np.reshape(PSD_tmp[0:-(len(PSD_tmp)%N_band_avg)],(N_band_avg,-1))
+            PSD_bands  = np.reshape(PSD_tmp[0:-(len(PSD_tmp)%N_band_avg)],(N_band_avg,-1),order='F')
             PSD        = np.mean(PSD_bands,axis=0);
             freq       = freq_tmp[np.int(np.ceil(N_band_avg/2)):len(freq_tmp):N_band_avg]
         else:
             print('Error! Number of DOF must be a multiple of 2')
-            return
+#            return
     else:
         PSD = PSD_tmp
         freq = freq_tmp
@@ -201,6 +201,18 @@ def plot_spectrum(PSD, freq, xlim=[np.nan,np.nan],ylim=[np.nan,np.nan]):
     
     plt.loglog(freq,PSD)
     plt.grid()
+    ax1 = plt.gca()
+    
+    ax2 = add_wavelength_axis_to_spectrum(ax1)
+    
+
+def add_wavelength_axis_to_spectrum(ax1,units=''):
+    limX = ax1.get_xlim()
+    ax2 = ax1.twiny()
+    ax2.set_xlim([1./limX[0],1./limX[1]])
+    ax2.set_xscale('log')
+    ax2.set_xlabel('Wavelength [' + units + ']')
+    return ax2
 
 def compute_spectrum_slope(PSD,freq,freq_lim):
     '''
