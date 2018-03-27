@@ -6,3 +6,5 @@ The install use a traditional setup.py script. Simply clone the repository and r
 
 ## Examples
 In the examples directory, a Jupyter notebook helps you go through some examples of spectra.
+You will need to install Jupyter if you want to use it interactively (http://jupyter.org/install.html). 
+Otherwise, you can read the html or pdf version.
