@@ -182,6 +182,8 @@ def lin_regression_with_skillcrit(y_nan,X_nan,a=0.05,nu=np.nan):
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     '''
 
+    N_nan,M = X_nan.shape
+    M = M-1
     [B,y_est,S,N] = lin_regression(y_nan, X_nan)
 
     # Compute the nu coeff (average of both methods)
@@ -192,10 +194,10 @@ def lin_regression_with_skillcrit(y_nan,X_nan,a=0.05,nu=np.nan):
     N_eff = N*nu
 
     # Compute Confidence intervals for B
-    D = np.matmul(X.T,X)
+    D = np.matmul(X_nan.T,X_nan)
     D_inv = np.linalg.inv(D)
     qt = t.ppf(1-a/2.,N_eff-M-1)
-    dB = np.nanstd(y)*np.sqrt(np.diag(D_inv)*(1-S)/(N_eff-M-1))*qt;
+    dB = np.nanstd(y_nan)*np.sqrt(np.diag(D_inv)*(1-S)/(N_eff-M-1))*qt;
  
     # Compute S_crit
     qf = f.ppf(1-a,M,N_eff-M-1)
