@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats import chi2
+from scipy.stats import chi2,t,f
 import matplotlib.pyplot     as plt
 
 
@@ -105,6 +105,156 @@ def detrend_timeserie(data,x=np.ones(2)*np.nan):
     data_detrend = data-(B[0][0]+B[0][1]*x)
 
     return data_detrend
+
+
+def lin_regression(y_nan,X_nan):
+    '''
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Linear regression of a time serie 
+    % 
+    % [B,y_est,S,N] = lin_regression(y_nan, X_nan)
+    %
+    % IN:
+    %       - y_nan: the estimand
+    %       - X_nan: matrix with M input variables as columns (size NxM)
+    %
+    % OUT:
+    %       - B     : vector column (size M) with the response coefficients
+    %       - y_est : estimation of the estimand with the regression
+    %       - S     : hindcast skill of the regression
+    %       - N     : number of good values
+    %
+    % Written by R. Escudier (2018)
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    '''
+
+    # Check if dimensions are consistent
+    N_nan,M = X_nan.shape
+    if (N_nan != len(y_nan)):
+       print 'Error: The column of X must have the same size as y!'
+       return 0
+
+    # Ignore NaNs values
+    id_nonan = np.where(~np.isnan(y_nan))
+    y = y_nan[id_nonan]
+    X = X_nan[id_nonan,:].squeeze()
+    N = len(y)
+
+    # Linear regression coefficients
+    B = np.linalg.lstsq(X,y)
+
+    # Compute estimate
+    y_est = (B[0]*X_nan).sum(axis=1)
+
+    # Compute skill S
+    S = np.var(y_est)/np.var(y)
+
+    # Return outputs
+    return B[0],y_est,S,N
+
+
+
+
+def lin_regression_with_skillcrit(y_nan,X_nan,a=0.05,nu=np.nan):
+    '''
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Linear regression of a time serie 
+    % 
+    % [B,y_est,S,N,S_crit,dB,N_eff] = lin_regression_with_skillcrit(y_nan,X_nan)
+    %
+    % IN:
+    %       - y_nan: the estimand
+    %       - X_nan: matrix with M input variables as columns (size NxM)
+    % OPTIONS:
+    %       - a  : alpha parameter for the confidence test (at 100(1-a)%)
+    %       - nu : coefficient for the dof
+    %
+    % OUT:
+    %       - B     : vector column (size M) with the response coefficients
+    %       - y_est : estimation of the estimand with the regression
+    %       - S     : hindcast skill of the regression
+    %       - N     : number of good values
+    %       - S_crit: critical value for the null hypothesis that S=0
+    %       - dB    : Intervals of confidence for the coefficients 
+    %       - N_eff : Effective number of dof
+    %
+    % Written by R. Escudier (2018)
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    '''
+
+    [B,y_est,S,N] = lin_regression(y_nan, X_nan)
+
+    # Compute the nu coeff (average of both methods)
+    nu_askill,nu_pdf = coef_dof_skill(y_nan,X_nan)
+    nu = (nu_askill+nu_pdf)/2.0
+
+    # Deduce the Neff (effective degrees of freedom)
+    N_eff = N*nu
+
+    # Compute Confidence intervals for B
+    D = np.matmul(X.T,X)
+    D_inv = np.linalg.inv(D)
+    qt = t.ppf(1-a/2.,N_eff-M-1)
+    dB = np.nanstd(y)*np.sqrt(np.diag(D_inv)*(1-S)/(N_eff-M-1))*qt;
+ 
+    # Compute S_crit
+    qf = f.ppf(1-a,M,N_eff-M-1)
+    S_crit = M*qf/(N_eff-M-1+M*qf)
+
+    # Return outputs
+    return B[0],y_est,S,N,S_crit,dB,N_eff
+
+
+
+def coef_dof_skill(y,X):
+    '''
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Calculate degrees of freedom for the skill of a regression with two methods
+    % 
+    % [nu_askill,nu_pdf] = coef_dof_skill(y,X)
+    %
+    % IN:
+    %       - y: the estimand
+    %       - X: matrix with M input variables as columns (size NxM)
+    %
+    % OUT:
+    %       - nu_askill : Artificial skill estimate
+    %       - nu_pdf    : pdf estimate
+    %
+    % Written by R. Escudier (2018) from D. Chelton method
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    '''
+
+    N_tot,M = np.shape(X)
+    M = M-1
+    # Do the regression for the series lagged by 60-80% of size
+    N_min = np.int(np.floor(.6*N_tot))
+    N_max = np.int(np.floor(.8*N_tot))
+    K = N_max - N_min + 1
+
+    # Initialization
+    S = np.zeros((2*K,))
+    N = np.zeros((2*K,))
+
+    # Get skill values
+    for i_cur,k in enumerate(range(N_min,N_max+1)):
+       _,_,S[i_cur],N[i_cur]     = lin_regression(y[k:],X[:-k,:])
+       _,_,S[i_cur+K],N[i_cur+K] = lin_regression(y[:-k],X[k:,:])
+
+    # Artificial skill estimate
+    NS = S*N
+    A = np.sum(NS)/(2*K)
+    nu_askill = M/A
+
+    # pdf estimate
+    SCorr = S/(1- S)
+    SNCorr = SCorr*N
+    A1 = np.sum(SCorr)/(2*K)
+    A2 = np.sum(SNCorr)/(2*K)
+    nu_pdf = (M+(M+3)*A1)/A2
+
+    # Return two coefficients
+    return nu_askill, nu_pdf
 
 
 def compute_spectrum(y, Fs, taper=None, dof=2):
