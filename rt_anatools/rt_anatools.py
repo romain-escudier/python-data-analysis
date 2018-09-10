@@ -204,7 +204,7 @@ def lin_regression_with_skillcrit(y_nan,X_nan,a=0.05,nu=np.nan):
     S_crit = M*qf/(N_eff-M-1+M*qf)
 
     # Return outputs
-    return B[0],y_est,S,N,S_crit,dB,N_eff
+    return B,y_est,S,N,S_crit,dB,N_eff
 
 
 
