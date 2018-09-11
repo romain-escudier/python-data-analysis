@@ -144,15 +144,65 @@ def lin_regression(y_nan,X_nan):
     B = np.linalg.lstsq(X,y)
 
     # Compute estimate
+    y_est_nonan = (B[0]*X).sum(axis=1)
     y_est = (B[0]*X_nan).sum(axis=1)
 
     # Compute skill S
-    S = np.var(y_est)/np.var(y)
+    S = np.var(y_est_nonan)/np.var(y)
 
     # Return outputs
     return B[0],y_est,S,N
 
 
+def coef_dof_skill(y,X):
+    '''
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Calculate degrees of freedom for the skill of a regression with two methods
+    % 
+    % [nu_askill,nu_pdf] = coef_dof_skill(y,X)
+    %
+    % IN:
+    %       - y: the estimand
+    %       - X: matrix with M input variables as columns (size NxM)
+    %
+    % OUT:
+    %       - nu_askill : Artificial skill estimate
+    %       - nu_pdf    : pdf estimate
+    %
+    % Written by R. Escudier (2018) from D. Chelton method
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    '''
+
+    N_tot,M = np.shape(X)
+    M = M-1
+    # Do the regression for the series lagged by 60-80% of size
+    N_min = np.int(np.floor(.6*N_tot))
+    N_max = np.int(np.floor(.8*N_tot))
+    K = N_max - N_min + 1
+
+    # Initialization
+    S = np.zeros((2*K,))
+    N = np.zeros((2*K,))
+
+    # Get skill values
+    for i_cur,k in enumerate(range(N_min,N_max+1)):
+       _,_,S[i_cur],N[i_cur]     = lin_regression(y[k:],X[:-k,:])
+       _,_,S[i_cur+K],N[i_cur+K] = lin_regression(y[:-k],X[k:,:])
+
+    # Artificial skill estimate
+    NS = S*N
+    A = np.sum(NS)/(2*K)
+    nu_askill = M/A
+
+    # pdf estimate
+    SCorr = S/(1- S)
+    SNCorr = SCorr*N
+    A1 = np.sum(SCorr)/(2*K)
+    A2 = np.sum(SNCorr)/(2*K)
+    nu_pdf = (M+(M+3)*A1)/A2
+
+    # Return two coefficients
+    return nu_askill, nu_pdf
 
 
 def lin_regression_with_skillcrit(y_nan,X_nan,a=0.05,nu=np.nan):
@@ -206,57 +256,6 @@ def lin_regression_with_skillcrit(y_nan,X_nan,a=0.05,nu=np.nan):
     # Return outputs
     return B,y_est,S,N,S_crit,dB,N_eff
 
-
-
-def coef_dof_skill(y,X):
-    '''
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Calculate degrees of freedom for the skill of a regression with two methods
-    % 
-    % [nu_askill,nu_pdf] = coef_dof_skill(y,X)
-    %
-    % IN:
-    %       - y: the estimand
-    %       - X: matrix with M input variables as columns (size NxM)
-    %
-    % OUT:
-    %       - nu_askill : Artificial skill estimate
-    %       - nu_pdf    : pdf estimate
-    %
-    % Written by R. Escudier (2018) from D. Chelton method
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    '''
-
-    N_tot,M = np.shape(X)
-    M = M-1
-    # Do the regression for the series lagged by 60-80% of size
-    N_min = np.int(np.floor(.6*N_tot))
-    N_max = np.int(np.floor(.8*N_tot))
-    K = N_max - N_min + 1
-
-    # Initialization
-    S = np.zeros((2*K,))
-    N = np.zeros((2*K,))
-
-    # Get skill values
-    for i_cur,k in enumerate(range(N_min,N_max+1)):
-       _,_,S[i_cur],N[i_cur]     = lin_regression(y[k:],X[:-k,:])
-       _,_,S[i_cur+K],N[i_cur+K] = lin_regression(y[:-k],X[k:,:])
-
-    # Artificial skill estimate
-    NS = S*N
-    A = np.sum(NS)/(2*K)
-    nu_askill = M/A
-
-    # pdf estimate
-    SCorr = S/(1- S)
-    SNCorr = SCorr*N
-    A1 = np.sum(SCorr)/(2*K)
-    A2 = np.sum(SNCorr)/(2*K)
-    nu_pdf = (M+(M+3)*A1)/A2
-
-    # Return two coefficients
-    return nu_askill, nu_pdf
 
 
 def compute_spectrum(y, Fs, taper=None, dof=2):
