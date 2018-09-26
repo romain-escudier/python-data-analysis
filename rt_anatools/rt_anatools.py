@@ -253,6 +253,10 @@ def lin_regression_with_skillcrit(y_nan,X_nan,a=0.05,nu=np.nan):
     qf = f.ppf(1-a,M,N_eff-M-1)
     S_crit = M*qf/(N_eff-M-1+M*qf)
 
+    # Compute p-value for S
+    qf_val = S*(N_eff-M-1)/(M*(1-S))
+    pval = f.cdf(qf_val,M,N_eff-M-1)
+
     # Return outputs
     return B,y_est,S,N,S_crit,dB,N_eff
 
