@@ -62,7 +62,7 @@ def loess_smooth_handmade(data, fc, step=1, t=np.nan, t_final=np.nan):
             # adjust a polynomial to these data points
             X = np.stack((np.ones((n_pts,)),t[idx_weights],t[idx_weights]**2)).T
             W = np.diag(weights)
-            B = np.linalg.lstsq(np.dot(W,X),np.dot(W,data[idx_weights]))
+            B = np.linalg.lstsq(np.dot(W,X),np.dot(W,data[idx_weights]),rcond=None)
             coeff = B[0]
             # Smoothed value is the polynomial value at this location
             data_smooth[i] = coeff[0]+coeff[1]*t_final[i]+coeff[2]*t_final[i]**2
@@ -76,7 +76,7 @@ def detrend_timeserie(data,x=np.ones(2)*np.nan):
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Detrend a time serie
     % 
-    % data_smooth = loess_smooth_handmade(data, fc)
+    % data_detrended = detrend_timeserie(data, x=np.ones(2)*np.nan)
     %
     % IN:
     %       - data      : time serie to detrend
@@ -99,7 +99,7 @@ def detrend_timeserie(data,x=np.ones(2)*np.nan):
     
     # Linear regression on a line
     X = np.stack((np.ones((len(x),)),x)).T
-    B = np.linalg.lstsq(X[id_nonan,:].squeeze(),data[id_nonan])
+    B = np.linalg.lstsq(X[id_nonan,:].squeeze(),data[id_nonan],rcond=-1)
     
     # Output are the residuals
     data_detrend = data-(B[0][0]+B[0][1]*x)
@@ -131,7 +131,7 @@ def lin_regression(y_nan,X_nan):
     # Check if dimensions are consistent
     N_nan,M = X_nan.shape
     if (N_nan != len(y_nan)):
-       print 'Error: The column of X must have the same size as y!'
+       print('Error: The column of X must have the same size as y!')
        return 0
 
     # Ignore NaNs values
@@ -141,7 +141,7 @@ def lin_regression(y_nan,X_nan):
     N = len(y)
 
     # Linear regression coefficients
-    B = np.linalg.lstsq(X,y)
+    B = np.linalg.lstsq(X,y,rcond=None)
 
     # Compute estimate
     y_est_nonan = (B[0]*X).sum(axis=1)
@@ -262,7 +262,7 @@ def lin_regression_with_skillcrit(y_nan,X_nan,a=0.05,nu=np.nan):
 
 
 
-def compute_spectrum(y, Fs, taper=None, dof=2):
+def compute_spectrum(y, Fs, taper=None, dof=2, even_length=False):
     '''
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Compute the discrete Fourier Transform of the vector y using fft
@@ -309,10 +309,13 @@ def compute_spectrum(y, Fs, taper=None, dof=2):
         y_tmp = y_tmp*w
 
     # Compute spectrum with fft function
-    Y = np.fft.rfft(y_tmp)/L
-    freq_tmp    = np.arange(0,np.int(L/2)+1)/T
-    PSD_tmp     = 2*T*np.abs(Y**2)
-    PSD_tmp[1]  = PSD_tmp[1]/2
+    if even_length:
+       L = L +L%2
+       T = L*Dt
+    Y = np.fft.rfft(y_tmp,n=L)/L
+    freq_tmp    = np.arange(0,np.floor(L/2)+1)/T
+    PSD_tmp     = 2*T*np.abs(Y)**2
+    PSD_tmp[0]  = PSD_tmp[0]/2
     PSD_tmp[-1] = PSD_tmp[-1]/2
 
     # Smoothing
@@ -321,7 +324,7 @@ def compute_spectrum(y, Fs, taper=None, dof=2):
             N_band_avg = np.int(dof/2)
             PSD_bands  = np.reshape(PSD_tmp[0:-(len(PSD_tmp)%N_band_avg)],(N_band_avg,-1),order='F')
             PSD        = np.mean(PSD_bands,axis=0);
-            freq       = freq_tmp[np.int(np.ceil(N_band_avg/2)):len(freq_tmp):N_band_avg]
+            freq       = freq_tmp[np.int(np.ceil(N_band_avg/2)):(len(freq_tmp)-len(freq_tmp)%N_band_avg):N_band_avg]
         else:
             print('Error! Number of DOF must be a multiple of 2')
 #            return
@@ -381,7 +384,7 @@ def compute_spectrum_slope(PSD,freq,freq_lim):
     
     # Linear regression on a line
     X = np.stack((np.ones((len(freq_slope),)),freq_slope)).T
-    B = np.linalg.lstsq(X,PSD_slope)
+    B = np.linalg.lstsq(X,PSD_slope,rcond=None)
     
     return B[0][1]
 
